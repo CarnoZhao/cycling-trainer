@@ -23,7 +23,7 @@ from pathlib import Path
 
 BASE_URL = "https://intervals.icu"
 SCRIPT_DIR = Path(__file__).parent.parent  # skills/cycling-trainer/
-DATA_DIR = Path("~/.openclaw/workspace-cycling/data/cycling")
+DATA_DIR = SCRIPT_DIR.parent.parent / "data/cycling"
 CACHE_FILE = DATA_DIR / "sync_state.json"
 ACTIVITIES_FILE = DATA_DIR / "activities.json"
 CONFIG_FILE = SCRIPT_DIR / "config.json"
@@ -36,13 +36,15 @@ def load_config():
     return {}
 
 def get_credentials(args):
-    """获取认证信息，按优先级合并"""
+    """获取认证信息，按优先级合并（命令行 > 环境变量 > 配置文件）"""
     config = load_config()
     
     athlete_id = args.athlete_id or os.getenv('INTERVALS_ATHLETE_ID') or config.get('athlete_id')
     api_key = args.api_key or os.getenv('INTERVALS_API_KEY') or config.get('api_key')
+    email = args.email or os.getenv('INTERVALS_EMAIL') or config.get('email')
+    password = args.password or os.getenv('INTERVALS_PASSWORD') or config.get('password')
     
-    return athlete_id, api_key
+    return athlete_id, api_key, email, password
 
 def ensure_data_dir():
     """确保数据目录存在"""
@@ -75,13 +77,12 @@ def login_session(email, password):
     return session
 
 def fetch_activities(athlete_id, api_key, since_activity_id=None):
-    """获取活动列表"""
+    """获取活动列表 - 使用纯 API 方式"""
     
-    # Basic auth header
+    # Basic auth header（和你的参考代码一致）
     basic_token = base64.b64encode(f"API_KEY:{api_key}".encode("ascii")).decode()
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Referer': f'https://intervals.icu/activities/',
         'Authorization': f'Basic {basic_token}'
     }
     
@@ -93,7 +94,7 @@ def fetch_activities(athlete_id, api_key, since_activity_id=None):
     
     if resp.status_code != 200:
         print(f"Error: {resp.status_code}", file=sys.stderr)
-        return [], headers
+        return []
     
     all_activities = resp.json()
     
@@ -104,23 +105,66 @@ def fetch_activities(athlete_id, api_key, since_activity_id=None):
                 all_activities = all_activities[:i]
                 break
     
-    return all_activities, headers
+    return all_activities
 
-def fetch_activity_detail(activity_id, session, headers, with_intervals=True):
-    """获取单个活动详情"""
-    if not session:
-        return None
+def fetch_activity_detail_api(activity_id, api_key, with_intervals=True):
+    """获取单个活动详情 - 使用标准 API（适用于非 Strava 数据）"""
+    basic_token = base64.b64encode(f"API_KEY:{api_key}".encode("ascii")).decode()
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Authorization': f'Basic {basic_token}'
+    }
     
-    # 使用 intervals=true 获取详细的间歇数据
+    # 使用 intervals=true 参数一次性获取活动和 intervals 数据
+    url = f"{BASE_URL}/api/v1/activity/{activity_id}"
     if with_intervals:
-        url = f"{BASE_URL}/api/v1/activity/{activity_id}?intervals=true"
-    else:
-        url = f"{BASE_URL}/api/v1/activity/{activity_id}"
+        url += "?intervals=true"
     
-    resp = session.get(url, headers=headers)
+    resp = requests.get(url, headers=headers)
     if resp.status_code == 200:
         return resp.json()
     return None
+
+
+def fetch_activity_detail_browser(activity_id, session, api_key, with_intervals=True):
+    """获取单个活动详情 - 模拟浏览器行为（仅用于 Strava stub 数据）
+    
+    浏览器方式返回两个独立请求的结果，需要合并以匹配 API 格式
+    """
+    if not session:
+        return None
+    
+    # 构建认证 header（和你的代码一致）
+    basic_token = base64.b64encode(f"API_KEY:{api_key}".encode("ascii")).decode()
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Referer': f'https://intervals.icu/activities/{activity_id}/data',
+        'Authorization': f'Basic {basic_token}'
+    }
+    
+    # 第一步：获取活动基础数据（去掉 /v1/）
+    url = f"{BASE_URL}/api/activity/{activity_id}"
+    resp = session.get(url, headers=headers)
+    if resp.status_code != 200:
+        print(f"  ✗ {activity_id}: 获取活动详情失败 ({resp.status_code})")
+        return None
+    
+    activity = resp.json()
+    
+    # 第二步：获取 intervals 数据（如果需要）
+    if with_intervals:
+        interval_url = f"{BASE_URL}/api/activity/{activity_id}/intervals"
+        interval_resp = session.get(interval_url, headers=headers)
+        if interval_resp.status_code == 200:
+            interval_data = interval_resp.json()
+            # 合并 intervals 数据到 activity，匹配 API 格式
+            activity['icu_intervals'] = interval_data.get('icu_intervals', [])
+            activity['icu_groups'] = interval_data.get('icu_groups', [])
+        else:
+            activity['icu_intervals'] = []
+            activity['icu_groups'] = []
+    
+    return activity
 
 def sync(athlete_id, api_key, email=None, password=None, full=False, refresh_intervals=False, force_from=None):
     """同步数据
@@ -156,10 +200,15 @@ def sync(athlete_id, api_key, email=None, password=None, full=False, refresh_int
         else:
             print("首次同步，全量获取...")
     
-    # 获取活动列表
-    all_activities, headers = fetch_activities(athlete_id, api_key, since_id)
+    # 获取活动列表（API 方式，Strava 数据会是 stub）
+    all_activities = fetch_activities(athlete_id, api_key, since_id)
     
     print(f"获取到 {len(all_activities)} 个原始活动")
+    
+    # 统计有多少 Strava stub 需要后续处理
+    strava_stubs = [a for a in all_activities if a.get('source') == 'STRAVA' and '_note' in a]
+    if strava_stubs:
+        print(f"  其中 {len(strava_stubs)} 个 Strava 活动需要模拟浏览器获取详情")
     
     # 如果指定了 force_from，按日期过滤
     if force_from:
@@ -201,12 +250,17 @@ def sync(athlete_id, api_key, email=None, password=None, full=False, refresh_int
             has_time = a.get('moving_time', 0) > 0
             
             # 需要获取详情的情况：
-            # 1. Strava同步的活动 (source=STRAVA)
+            # 1. Strava stub 活动 (source=STRAVA 且包含 _note 字段)
             # 2. 空stub活动 (type=None or moving_time=0)
-            need_detail = (source == 'STRAVA') or (not has_type) or (not has_time)
+            is_strava_stub = (source == 'STRAVA' and '_note' in a)
+            need_detail = is_strava_stub or (not has_type) or (not has_time)
             
             if need_detail:
-                detail = fetch_activity_detail(activity_id, session, headers, with_intervals=True)
+                # Strava stub 用浏览器模拟方式，其他用标准 API
+                if is_strava_stub:
+                    detail = fetch_activity_detail_browser(activity_id, session, api_key, with_intervals=True)
+                else:
+                    detail = fetch_activity_detail_api(activity_id, api_key, with_intervals=True)
                 if detail:
                     idx = new_activities.index(a)
                     new_activities[idx] = detail
@@ -325,7 +379,13 @@ def refresh_intervals(athlete_id, api_key, email, password, limit=50):
             print(f"  {i+1}. {activity_id}: {name} - 已有 {len(a.get('icu_intervals', []))} intervals，跳过")
             continue
         
-        detail = fetch_activity_detail(activity_id, session, {}, with_intervals=True)
+        # 根据数据来源选择获取方式
+        source = a.get('source')
+        is_strava_stub = (source == 'STRAVA' and '_note' in a)
+        if is_strava_stub:
+            detail = fetch_activity_detail_browser(activity_id, session, api_key, with_intervals=True)
+        else:
+            detail = fetch_activity_detail_api(activity_id, api_key, with_intervals=True)
         if detail and detail.get('icu_intervals'):
             activities[i] = detail
             interval_count = len(detail.get('icu_intervals', []))
@@ -354,14 +414,17 @@ def main():
     
     args = parser.parse_args()
     
+    # 获取认证信息（按优先级合并：命令行 > 环境变量 > 配置文件）
+    athlete_id, api_key, email, password = get_credentials(args)
+    
     if args.status:
         show_status()
     elif args.refresh_intervals:
         # 刷新intervals详情
-        if not args.email or not args.password:
-            print("错误: --refresh-intervals 需要 --email 和 --password")
+        if not email or not password:
+            print("错误: --refresh-intervals 需要 email 和 password (通过参数、环境变量或 config.json 提供)")
             sys.exit(1)
-        refresh_intervals(args.athlete_id, args.api_key, args.email, args.password, args.refresh_limit)
+        refresh_intervals(athlete_id, api_key, email, password, args.refresh_limit)
     else:
         # 处理强制同步参数
         force_from = None
@@ -371,7 +434,7 @@ def main():
         elif args.from_date:
             force_from = args.from_date
         
-        sync(args.athlete_id, args.api_key, args.email, args.password, args.full, force_from)
+        sync(athlete_id, api_key, email, password, args.full, force_from)
 
 if __name__ == "__main__":
     main()
