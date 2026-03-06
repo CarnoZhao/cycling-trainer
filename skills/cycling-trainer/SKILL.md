@@ -63,8 +63,8 @@ export INTERVALS_API_KEY="your_api_key_here"
 ### 方式3：命令行参数
 
 ```bash
-python3 scripts/sync_intervals.py xxx --api-key xxx
-python3 scripts/extract_data.py --status --athlete-id xxx --api-key xxx
+python3 scripts/sync_intervals.py <athlete_id> --api-key <key>
+python3 scripts/extract_data.py --status --athlete-id <athlete_id> --api-key <key>
 ```
 
 ---
@@ -78,7 +78,7 @@ python3 scripts/extract_data.py --status --athlete-id xxx --api-key xxx
 python3 skills/cycling-trainer/scripts/sync_intervals.py --full
 
 # 或使用命令行参数
-python3 skills/cycling-trainer/scripts/sync_intervals.py xxx --api-key xxx --full
+python3 skills/cycling-trainer/scripts/sync_intervals.py <athlete_id> --api-key <key> --full
 
 # 增量同步
 python3 skills/cycling-trainer/scripts/sync_intervals.py
