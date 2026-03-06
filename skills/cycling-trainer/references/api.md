@@ -342,3 +342,126 @@ GET /api/v1/athlete/{athlete_id}/eventscsv?oldest={today}&newest={today+7d}&cate
 | `activities.json` | 所有活动原始数据 | 同步时写入 |
 | `sync_state.json` | 同步状态（时间、最后ID、数量） | 同步后更新 |
 | `config.json` | 用户配置（athlete_id, api_key, email, password） | 手动配置 |
+
+---
+
+## 同步脚本架构 (sync_intervals.py)
+
+### 模块化设计
+
+同步脚本采用模块化设计，将功能拆分为多个小文件：
+
+```
+scripts/
+├── sync_intervals.py      # 入口文件，负责 CLI 和模块调用
+└── sync/                  # 同步功能模块包
+    ├── __init__.py        # 包导出
+    ├── config.py          # 配置管理（加载、合并优先级）
+    ├── auth.py            # 认证相关（登录 session）
+    ├── api.py             # API 请求封装
+    ├── state.py           # 同步状态管理
+    ├── storage.py         # 数据持久化（activities.json 读写）
+    └── core.py            # 核心同步逻辑
+```
+
+### 模块职责
+
+#### config.py
+- `load_config()`: 加载 `config.json`
+- `get_credentials(args)`: 按优先级合并配置（命令行 > 环境变量 > 配置文件）
+- 定义全局路径常量
+
+#### auth.py
+- `login_session(email, password)`: 模拟浏览器登录获取 session
+
+#### api.py
+- `fetch_activities()`: 获取活动列表（标准 API）
+- `fetch_activity_detail_api()`: 获取活动详情（标准 API，用于 OAUTH_CLIENT 数据）
+- `fetch_activity_detail_browser()`: 获取活动详情（浏览器模拟，用于 Strava 数据）
+
+#### state.py
+- `get_sync_state()`: 读取 `sync_state.json`
+- `save_sync_state()`: 写入 `sync_state.json`
+- `update_sync_state()`: 根据活动列表更新状态
+
+#### storage.py
+- `ensure_data_dir()`: 确保数据目录存在
+- `load_activities()`: 加载 `activities.json`
+- `save_activities()`: 保存 `activities.json`
+- `merge_activities()`: 合并新旧数据并去重
+
+#### core.py
+- `sync_activities()`: 核心同步逻辑（增量同步、详情获取、数据过滤）
+- `refresh_intervals_for_activities()`: 刷新已有活动的 intervals 详情
+
+### 入口文件逻辑
+
+```python
+# sync_intervals.py 主流程
+
+1. 解析命令行参数
+2. 获取认证信息（调用 config.get_credentials）
+3. 根据参数执行对应操作：
+   - --status: 显示同步状态
+   - --refresh-intervals: 调用 core.refresh_intervals_for_activities
+   - 默认: 调用 core.sync_activities 执行同步
+4. 输出统计信息
+```
+
+### 增量同步流程
+
+```
+┌─────────────────┐
+│   加载已有数据   │
+└────────┬────────┘
+         ▼
+┌─────────────────┐
+│  获取同步状态    │
+│ (last_activity_id)
+└────────┬────────┘
+         ▼
+┌─────────────────┐
+│  获取活动列表    │
+│ (API /activities)│
+└────────┬────────┘
+         ▼
+┌─────────────────┐
+│  过滤新增活动    │
+│ (对比 existing_ids)
+└────────┬────────┘
+         ▼
+┌─────────────────┐
+│  获取活动详情    │
+│ (API 或浏览器模拟)│
+└────────┬────────┘
+         ▼
+┌─────────────────┐
+│  过滤无效数据    │
+│ (检查 type/time) │
+└────────┬────────┘
+         ▼
+┌─────────────────┐
+│  合并并保存      │
+│ (去重、排序)     │
+└────────┬────────┘
+         ▼
+┌─────────────────┐
+│  更新同步状态    │
+└─────────────────┘
+```
+
+### 需要获取详情的判断逻辑
+
+```python
+def _needs_detail_fetch(activity):
+    is_strava_stub = (source == 'STRAVA' and '_note' in activity)
+    has_type = activity.get('type') is not None
+    has_time = activity.get('moving_time', 0) > 0
+    has_intervals = 'icu_intervals' in activity
+    
+    # 以下情况需要获取详情：
+    # 1. Strava stub 活动
+    # 2. 空数据（无类型或时间）
+    # 3. 没有 intervals 数据
+    return is_strava_stub or (not has_type) or (not has_time) or (not has_intervals)
+```
