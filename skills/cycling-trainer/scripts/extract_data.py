@@ -4,14 +4,116 @@
 Cycling Data Extractor
 只负责从原始JSON中提取结构化数据，不做任何分析判断
 所有分析和决策交给LLM处理
+
+配置优先级：
+1. 环境变量 INTERVALS_ATHLETE_ID / INTERVALS_API_KEY
+2. 配置文件 config.json（与 SKILL.md 同级目录）
 """
 
 import json
+import os
+import subprocess
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
-DATA_FILE = Path("/root/.openclaw/workspace/data/cycling/activities.json")
+SCRIPT_DIR = Path(__file__).parent.parent  # skills/cycling-trainer/
+DATA_FILE = Path("~/.openclaw/workspace-cycling/data/cycling/activities.json")
+SYNC_STATE_FILE = Path("~/.openclaw/workspace-cycling/data/cycling/sync_state.json")
+CONFIG_FILE = SCRIPT_DIR / "config.json"
+SYNC_INTERVAL_HOURS = 4  # 超过4小时触发同步
+
+
+def load_config():
+    """加载配置文件"""
+    if CONFIG_FILE.exists():
+        try:
+            with open(CONFIG_FILE) as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"[Config] Error loading config.json: {e}", file=sys.stderr)
+    return {}
+
+
+def get_credentials():
+    """获取认证信息，按优先级合并"""
+    config = load_config()
+    
+    athlete_id = os.getenv('INTERVALS_ATHLETE_ID') or config.get('athlete_id')
+    api_key = os.getenv('INTERVALS_API_KEY') or config.get('api_key')
+    
+    return athlete_id, api_key
+
+def check_and_sync(force=False):
+    """
+    检查是否需要同步数据，如果需要则执行同步
+    
+    Args:
+        force: 强制同步，忽略时间间隔
+    
+    Returns:
+        dict: 同步结果信息
+    """
+    should_sync = force
+    last_sync_time = None
+    
+    # 读取 sync_state.json
+    if SYNC_STATE_FILE.exists():
+        try:
+            with open(SYNC_STATE_FILE) as f:
+                sync_state = json.load(f)
+            last_sync_str = sync_state.get('last_sync')
+            if last_sync_str:
+                last_sync_time = datetime.fromisoformat(last_sync_str)
+                hours_since_sync = (datetime.now() - last_sync_time).total_seconds() / 3600
+                
+                # 如果超过阈值，需要同步
+                if hours_since_sync >= SYNC_INTERVAL_HOURS:
+                    should_sync = True
+                    print(f"[Sync Check] Last sync was {hours_since_sync:.1f} hours ago (>={SYNC_INTERVAL_HOURS}h threshold)", file=sys.stderr)
+                else:
+                    print(f"[Sync Check] Data is fresh ({hours_since_sync:.1f}h < {SYNC_INTERVAL_HOURS}h), skipping sync", file=sys.stderr)
+        except Exception as e:
+            print(f"[Sync Check] Error reading sync state: {e}", file=sys.stderr)
+            should_sync = True
+    else:
+        # 没有 sync_state，需要同步
+        print("[Sync Check] No sync state found, syncing...", file=sys.stderr)
+        should_sync = True
+    
+    # 执行同步
+    if should_sync:
+        sync_script = Path(__file__).parent / "sync_intervals.py"
+        if sync_script.exists():
+            try:
+                print(f"[Sync] Running incremental sync...", file=sys.stderr)
+                result = subprocess.run(
+                    [sys.executable, str(sync_script), ATHLETE_ID, "--api-key", API_KEY],
+                    capture_output=True,
+                    text=True,
+                    timeout=120
+                )
+                if result.returncode == 0:
+                    print(f"[Sync] Completed successfully", file=sys.stderr)
+                    return {
+                        "synced": True,
+                        "last_sync_before": last_sync_time.isoformat() if last_sync_time else None,
+                        "output": result.stdout.strip()
+                    }
+                else:
+                    print(f"[Sync] Failed: {result.stderr}", file=sys.stderr)
+                    return {"synced": False, "error": result.stderr}
+            except subprocess.TimeoutExpired:
+                print("[Sync] Timeout after 120s", file=sys.stderr)
+                return {"synced": False, "error": "Sync timeout"}
+            except Exception as e:
+                print(f"[Sync] Error: {e}", file=sys.stderr)
+                return {"synced": False, "error": str(e)}
+        else:
+            print(f"[Sync] Sync script not found at {sync_script}", file=sys.stderr)
+            return {"synced": False, "error": "Sync script not found"}
+    
+    return {"synced": False, "reason": "Data is fresh"}
 
 def load_data():
     """加载本地数据"""
