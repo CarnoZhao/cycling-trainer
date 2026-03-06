@@ -24,41 +24,85 @@ description: 公路车骑行训练数据分析与规划工具。使用 intervals
 
 ---
 
+## Agent 执行流程
+
+当收到 `/ride-xxx` 命令时（除 `/ride-sync`）：
+
+```
+1. 根据命令类型调用 extract_data.py 提取对应数据
+2. 读取对应 prompt 文件
+3. 结合数据和 prompt 进行分析并回复
+```
+
+---
+
+## 配置方式
+
+支持三种方式配置 athlete_id 和 api_key（优先级从高到低）：
+
+### 方式1：配置文件（推荐）
+
+```bash
+# 1. 复制示例配置文件
+cp config.example.json config.json
+
+# 2. 编辑 config.json，填入真实信息
+{
+  "athlete_id": "your_athlete_id_here",
+  "api_key": "your_api_key_here"
+}
+```
+
+### 方式2：环境变量
+
+```bash
+export INTERVALS_ATHLETE_ID="your_athlete_id_here"
+export INTERVALS_API_KEY="your_api_key_here"
+```
+
+### 方式3：命令行参数
+
+```bash
+python3 scripts/sync_intervals.py xxx --api-key xxx
+python3 scripts/extract_data.py --status --athlete-id xxx --api-key xxx
+```
+
+---
+
 ## 快速开始
 
 ### 1. 数据同步
 
 ```bash
-# 首次全量同步
-python3 scripts/sync_intervals.py <athlete_id> --api-key <key> --full
+# 首次全量同步（需先配置好 config.json 或环境变量）
+python3 skills/cycling-trainer/scripts/sync_intervals.py --full
+
+# 或使用命令行参数
+python3 skills/cycling-trainer/scripts/sync_intervals.py xxx --api-key xxx --full
 
 # 增量同步
-python3 scripts/sync_intervals.py <athlete_id> --api-key <key>
+python3 skills/cycling-trainer/scripts/sync_intervals.py
 
 # 强制同步最近N天
-python3 scripts/sync_intervals.py <athlete_id> --api-key <key> --days 7
+python3 skills/cycling-trainer/scripts/sync_intervals.py --days 7
 ```
 
 ### 2. 数据提取（供LLM使用）
 
 ```bash
-# 提取状态数据
-python3 scripts/extract_data.py --status
+# 所有提取命令都支持自动同步检查（默认启用）
+# 提取状态数据（如需同步会自动执行）
+python3 skills/cycling-trainer/scripts/extract_data.py --status
 
-# 提取状态走势数据
-python3 scripts/extract_data.py --form
+# 跳过自动同步
+python3 skills/cycling-trainer/scripts/extract_data.py --status --no-sync
 
-# 提取趋势数据
-python3 scripts/extract_data.py --trend
-
-# 提取最近一次骑行
-python3 scripts/extract_data.py --latest
-
-# 提取本周数据
-python3 scripts/extract_data.py --week
-
-# 提取全部数据
-python3 scripts/extract_data.py --full
+# 其他提取命令
+python3 skills/cycling-trainer/scripts/extract_data.py --form
+python3 skills/cycling-trainer/scripts/extract_data.py --trend
+python3 skills/cycling-trainer/scripts/extract_data.py --latest
+python3 skills/cycling-trainer/scripts/extract_data.py --week
+python3 skills/cycling-trainer/scripts/extract_data.py --full
 ```
 
 ---
@@ -76,20 +120,23 @@ python3 scripts/extract_data.py --full
 
 ---
 
+
 ## 命令列表
 
 在 Discord/Telegram 骑行频道中直接发送以下命令：
 
-| 命令 | 功能 | 数据提取 | Prompt |
-|------|------|---------|--------|
-| `/ride-sync [天数]` | 同步数据 | `sync_intervals.py` | - |
-| `/ride-stats` | 当前训练状态 | `--status` | `status_analysis.md` |
-| `/ride-form` | 状态走势分析 | `--form` | `form_analysis.md` |
-| `/ride-trend` | 30天趋势分析 | `--trend` | `trend_analysis.md` |
-| `/ride-week` | 本周训练总结 | `--week` | `week_summary.md` |
-| `/ride-latest` | 最近一次骑行分析 | `--latest` | `latest_ride_analysis.md` |
-| `/ride-plan [FTP]` | 个性化训练计划 | `--status` + `--week` | `plan_generation.md` |
-| `/ride-full` | 完整报告 | `--full` | 组合多个prompt |
+| 命令 | 功能 | 数据提取 | Prompt | 自动同步 |
+|------|------|---------|--------|---------|
+| `/ride-sync [天数]` | 手动同步数据 | `sync_intervals.py` | - | ❌ 不适用 |
+| `/ride-stats` | 当前训练状态 | `--status` | `status_analysis.md` | ✅ |
+| `/ride-form` | 状态走势分析 | `--form` | `form_analysis.md` | ✅ |
+| `/ride-trend` | 30天趋势分析 | `--trend` | `trend_analysis.md` | ✅ |
+| `/ride-week` | 本周训练总结 | `--week` | `week_summary.md` | ✅ |
+| `/ride-latest` | 最近一次骑行分析 | `--latest` | `latest_ride_analysis.md` | ✅ |
+| `/ride-plan [FTP]` | 个性化训练计划 | `--status` + `--week` | `plan_generation.md` | ✅ |
+| `/ride-full` | 完整报告 | `--full` | 组合多个prompt | ✅ |
+
+> ✅ = 执行前自动检查并同步数据（如需要）
 
 ---
 
@@ -149,9 +196,9 @@ python3 scripts/extract_data.py --full
 
 ## 本地数据位置
 
-- 活动数据: `/root/.openclaw/workspace/data/cycling/activities.json`
-- 同步状态: `/root/.openclaw/workspace/data/cycling/sync_state.json`
-- 频道记忆: `/root/.openclaw/workspace/memory/cycling.md`
+- 活动数据: `~/.openclaw/workspace-cycling/data/cycling/activities.json`
+- 同步状态: `~/.openclaw/workspace-cycling/data/cycling/sync_state.json`
+- 频道记忆: `~/.openclaw/workspace-cycling/memory/cycling.md`
 
 ---
 

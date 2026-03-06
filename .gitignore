@@ -1,0 +1,25 @@
+# OpenClaw
+.openclaw/
+data/
+memory/
+
+
+# 敏感配置文件
+config.json
+*.key
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# 数据文件（可选，如果数据较大）
+../../data/cycling/*.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

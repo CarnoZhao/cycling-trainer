@@ -5,6 +5,11 @@ intervals.icu 数据同步脚本 - 增量更新
 - 只下载新增的活动
 - 本地持久化保存
 - 支持 CLI 调用
+
+配置方式（优先级从高到低）：
+1. 命令行参数 --athlete-id 和 --api-key
+2. 环境变量 INTERVALS_ATHLETE_ID 和 INTERVALS_API_KEY
+3. 配置文件 config.json（与 SKILL.md 同级目录）
 """
 
 import argparse
@@ -17,9 +22,27 @@ from datetime import datetime as dt
 from pathlib import Path
 
 BASE_URL = "https://intervals.icu"
-DATA_DIR = Path("/root/.openclaw/workspace/data/cycling")
+SCRIPT_DIR = Path(__file__).parent.parent  # skills/cycling-trainer/
+DATA_DIR = Path("~/.openclaw/workspace-cycling/data/cycling")
 CACHE_FILE = DATA_DIR / "sync_state.json"
 ACTIVITIES_FILE = DATA_DIR / "activities.json"
+CONFIG_FILE = SCRIPT_DIR / "config.json"
+
+def load_config():
+    """加载配置文件"""
+    if CONFIG_FILE.exists():
+        with open(CONFIG_FILE) as f:
+            return json.load(f)
+    return {}
+
+def get_credentials(args):
+    """获取认证信息，按优先级合并"""
+    config = load_config()
+    
+    athlete_id = args.athlete_id or os.getenv('INTERVALS_ATHLETE_ID') or config.get('athlete_id')
+    api_key = args.api_key or os.getenv('INTERVALS_API_KEY') or config.get('api_key')
+    
+    return athlete_id, api_key
 
 def ensure_data_dir():
     """确保数据目录存在"""
@@ -318,8 +341,8 @@ def refresh_intervals(athlete_id, api_key, email, password, limit=50):
 
 def main():
     parser = argparse.ArgumentParser(description="intervals.icu 数据同步")
-    parser.add_argument("athlete_id", help="骑手 ID")
-    parser.add_argument("--api-key", required=True, help="API Key")
+    parser.add_argument("athlete_id", nargs="?", help="骑手 ID (可选，优先从配置读取)")
+    parser.add_argument("--api-key", help="API Key (可选，优先从配置读取)")
     parser.add_argument("--email", help="Strava 同步需要邮箱")
     parser.add_argument("--password", help="Strava 同步需要密码")
     parser.add_argument("--full", action="store_true", help="全量同步")
