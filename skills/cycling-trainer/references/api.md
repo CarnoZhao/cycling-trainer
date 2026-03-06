@@ -189,17 +189,79 @@ Headers: (同上)
                         └──────────────┘           └──────────────┘
 ```
 
-### 自动同步机制
+### 模块化架构
 
-所有提取命令（除 `--no-sync`）执行前会自动检查数据新鲜度：
+提取脚本采用模块化设计：
+
+```
+scripts/
+├── extract_data.py        # 入口文件，负责 CLI 和模块调用
+└── extract/               # 数据提取模块包
+    ├── __init__.py        # 包导出
+    ├── config.py          # 配置管理
+    ├── sync.py            # 同步检查
+    ├── storage.py         # 数据加载
+    ├── utils.py           # 工具函数
+    ├── extractors.py      # 各类型数据提取器
+    └── planned.py         # 计划训练数据获取
+```
+
+### 模块职责
+
+#### config.py
+- `load_config()`: 加载 `config.json`
+- `get_credentials()`: 按优先级合并配置（环境变量 > 配置文件）
+
+#### sync.py
+- `check_and_sync(athlete_id, api_key, force=False)`: 检查数据新鲜度，必要时触发同步
+- `SYNC_INTERVAL_HOURS = 4`: 同步间隔阈值
+
+#### storage.py
+- `load_data()`: 加载 `activities.json` 并按时间倒序排列
+
+#### utils.py
+- `get_weekday_cn(dt)`: 返回中文星期几
+
+#### extractors.py
+- `extract_status_data()`: 提取当前状态数据（CTL/ATL/TSB、本周活动、30天历史）
+- `extract_form_data()`: 提取状态走势数据（间歇区间、按心率分组）
+- `extract_trend_data()`: 提取30天趋势数据（日数据、周汇总）
+- `extract_latest_ride_data()`: 提取最近一次骑行详情
+- `extract_week_data()`: 提取本周数据汇总
+
+#### planned.py
+- `fetch_planned_workouts()`: 从 API 获取已安排的训练计划
+- `extract_planned_data()`: 提取计划数据入口
+
+### 入口文件逻辑
+
+```python
+# extract_data.py 主流程
+
+1. 解析命令行参数
+2. 获取认证信息（调用 config.get_credentials）
+3. 自动同步检查（除非指定 --no-sync）：
+   - 调用 sync.check_and_sync(athlete_id, api_key)
+4. 根据参数执行对应提取器：
+   - --status: extract_status_data()
+   - --form: extract_form_data()
+   - --trend: extract_trend_data()
+   - --latest: extract_latest_ride_data()
+   - --week: extract_week_data()
+   - --planned: extract_planned_data()
+   - --full: 组合以上所有
+5. 输出 JSON 结果
+```
+
+### 自动同步机制
 
 ```python
 SYNC_INTERVAL_HOURS = 4  # 超过4小时触发同步
 
-def check_and_sync(force=False):
+def check_and_sync(athlete_id, api_key, force=False):
     # 1. 读取 sync_state.json 获取上次同步时间
     # 2. 计算距离上次同步的小时数
-    # 3. 如果 >= 4小时，自动调用 sync_intervals.py 增量同步
+    # 3. 如果 >= 4小时或 force=True，调用 sync_intervals.py
     # 4. 返回同步结果
 ```
 
