@@ -252,8 +252,10 @@ def sync(athlete_id, api_key, email=None, password=None, full=False, refresh_int
             # 需要获取详情的情况：
             # 1. Strava stub 活动 (source=STRAVA 且包含 _note 字段)
             # 2. 空stub活动 (type=None or moving_time=0)
+            # 3. 没有 icu_intervals 的活动（API列表返回的数据不完整）
             is_strava_stub = (source == 'STRAVA' and '_note' in a)
-            need_detail = is_strava_stub or (not has_type) or (not has_time)
+            has_intervals = 'icu_intervals' in a
+            need_detail = is_strava_stub or (not has_type) or (not has_time) or (not has_intervals)
             
             if need_detail:
                 # Strava stub 用浏览器模拟方式，其他用标准 API

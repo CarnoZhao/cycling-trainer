@@ -18,8 +18,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).parent.parent  # skills/cycling-trainer/
-DATA_FILE = Path("~/.openclaw/workspace-cycling/data/cycling/activities.json")
-SYNC_STATE_FILE = Path("~/.openclaw/workspace-cycling/data/cycling/sync_state.json")
+DATA_FILE = SCRIPT_DIR.parent.parent / "data/cycling/activities.json"
+SYNC_STATE_FILE = SCRIPT_DIR.parent.parent / "data/cycling/sync_state.json"
 CONFIG_FILE = SCRIPT_DIR / "config.json"
 SYNC_INTERVAL_HOURS = 4  # 超过4小时触发同步
 
@@ -130,46 +130,59 @@ def extract_status_data():
         return data
     
     latest = data[0] if data else {}
+    today = datetime.now()
     
     # 最近7天活动
-    week_ago = (datetime.now() - timedelta(days=7)).isoformat()
-    week_activities = [
-        {
-            "date": a.get('start_date_local', '')[:10],
-            "name": a.get('name', ''),
-            "type": a.get('type', ''),
-            "duration_min": round(a.get('moving_time', 0) / 60, 1),
-            "distance_km": round(a.get('distance', 0) / 1000, 1),
-            "training_load": a.get('icu_training_load', 0),
-            "avg_watts": a.get('icu_weighted_avg_watts', 0),
-            "avg_hr": a.get('average_heartrate', 0),
-            "max_hr": a.get('max_heartrate', 0),
-            "ftp": a.get('icu_ftp', 0),
-            "ctl": a.get('icu_ctl', 0),
-            "atl": a.get('icu_atl', 0),
-        }
-        for a in data
-        if a.get('start_date', '') >= week_ago and a.get('icu_training_load', 0) > 0
-    ]
+    week_ago = (today - timedelta(days=7)).isoformat()
+    week_activities = []
+    for a in data:
+        if a.get('start_date', '') >= week_ago and a.get('icu_training_load', 0) > 0:
+            try:
+                activity_date = datetime.strptime(a.get('start_date_local', '')[:10], '%Y-%m-%d')
+                week_activities.append({
+                    "date": a.get('start_date_local', '')[:10],
+                    "weekday": get_weekday_cn(activity_date),
+                    "name": a.get('name', ''),
+                    "type": a.get('type', ''),
+                    "duration_min": round(a.get('moving_time', 0) / 60, 1),
+                    "distance_km": round(a.get('distance', 0) / 1000, 1),
+                    "training_load": a.get('icu_training_load', 0),
+                    "avg_watts": a.get('icu_weighted_avg_watts', 0),
+                    "avg_hr": a.get('average_heartrate', 0),
+                    "max_hr": a.get('max_heartrate', 0),
+                    "ftp": a.get('icu_ftp', 0),
+                    "ctl": a.get('icu_ctl', 0),
+                    "atl": a.get('icu_atl', 0),
+                })
+            except:
+                pass
     
     # 最近30天CTL/ATL历史
-    month_ago = (datetime.now() - timedelta(days=30)).isoformat()
-    fitness_history = [
-        {
-            "date": a.get('start_date_local', '')[:10],
-            "ctl": a.get('icu_ctl', 0),
-            "atl": a.get('icu_atl', 0),
-            "tsb": round((a.get('icu_ctl', 0) or 0) - (a.get('icu_atl', 0) or 0), 1),
-            "training_load": a.get('icu_training_load', 0),
-        }
-        for a in data
-        if a.get('start_date', '') >= month_ago and a.get('icu_ctl') is not None
-    ][:30]
+    month_ago = (today - timedelta(days=30)).isoformat()
+    fitness_history = []
+    for a in data:
+        if a.get('start_date', '') >= month_ago and a.get('icu_ctl') is not None:
+            try:
+                activity_date = datetime.strptime(a.get('start_date_local', '')[:10], '%Y-%m-%d')
+                fitness_history.append({
+                    "date": a.get('start_date_local', '')[:10],
+                    "weekday": get_weekday_cn(activity_date),
+                    "ctl": a.get('icu_ctl', 0),
+                    "atl": a.get('icu_atl', 0),
+                    "tsb": round((a.get('icu_ctl', 0) or 0) - (a.get('icu_atl', 0) or 0), 1),
+                    "training_load": a.get('icu_training_load', 0),
+                })
+            except:
+                pass
+    fitness_history = fitness_history[:30]
     
     return {
         "athlete_id": latest.get('icu_athlete_id', ''),
+        "today": today.strftime('%Y-%m-%d'),
+        "today_weekday": get_weekday_cn(today),
         "latest_activity": {
             "date": latest.get('start_date_local', '')[:10],
+            "weekday": get_weekday_cn(datetime.strptime(latest.get('start_date_local', '')[:10], '%Y-%m-%d')) if latest.get('start_date_local') else '',
             "name": latest.get('name', ''),
             "ctl": latest.get('icu_ctl', 0),
             "atl": latest.get('icu_atl', 0),
@@ -399,6 +412,12 @@ def extract_latest_ride_data():
         },
     }
 
+def get_weekday_cn(dt):
+    """获取中文星期几"""
+    weekdays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
+    return weekdays[dt.weekday()]
+
+
 def extract_week_data():
     """提取本周数据"""
     data = load_data()
@@ -416,7 +435,7 @@ def extract_week_data():
             if activity_date >= monday:
                 week_activities.append({
                     "date": a.get('start_date_local', '')[:10],
-                    "weekday": activity_date.strftime('%A'),
+                    "weekday": get_weekday_cn(activity_date),
                     "name": a.get('name', ''),
                     "type": a.get('type', ''),
                     "duration_min": round(a.get('moving_time', 0) / 60, 1),
@@ -440,7 +459,9 @@ def extract_week_data():
     
     return {
         "week_start": monday.strftime('%Y-%m-%d'),
+        "week_start_weekday": get_weekday_cn(monday),
         "today": today.strftime('%Y-%m-%d'),
+        "today_weekday": get_weekday_cn(today),
         "activities": week_activities,
         "summary": {
             "count": len(week_activities),
