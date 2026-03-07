@@ -8,6 +8,26 @@ from datetime import datetime, timedelta
 from .storage import load_data
 from .utils import get_weekday_cn
 
+# 可以安全忽略的字段（100% 为 null/0/空/False）
+IGNORED_FIELDS_100 = {
+    'attachments', 'average_clouds', 'average_feels_like', 'average_weather_temp',
+    'average_wind_gust', 'average_wind_speed', 'avg_lr_balance', 'carbs_ingested',
+    'coach_tick', 'commute', 'crank_length', 'custom_zones', 'feel', 'file_sport_index',
+    'has_weather', 'headwind_percent', 'icu_color', 'icu_ignore_hr', 'icu_ignore_power',
+    'icu_ignore_time', 'icu_power_spike_threshold', 'icu_rolling_cp', 'icu_rpe',
+    'icu_sync_error', 'icu_w_prime', 'ignore_pace', 'ignore_parts', 'ignore_velocity',
+    'kg_lifted', 'lengths', 'lock_intervals', 'max_feels_like', 'max_rain', 'max_snow',
+    'max_weather_temp', 'min_feels_like', 'min_weather_temp', 'p_max', 'perceived_exertion',
+    'pool_length', 'power_meter', 'power_meter_battery', 'power_meter_serial',
+    'prevailing_wind_deg', 'race', 'recording_stops', 'route_id', 'session_rpe',
+    'sub_type', 'tags', 'tailwind_percent', 'use_elevation_correction', 'workout_shift_secs',
+}
+
+# 基本可忽略的字段（≥90% 为空）
+IGNORED_FIELDS_90 = {
+    'p30s_exponent', 'icu_chat_id', 'icu_rolling_ftp_delta', 'icu_achievements',
+}
+
 
 def extract_status_data():
     """
@@ -27,7 +47,8 @@ def extract_status_data():
     week_ago = (today - timedelta(days=7)).isoformat()
     week_activities = []
     for a in data:
-        if a.get('start_date', '') >= week_ago and a.get('icu_training_load', 0) > 0:
+        # 使用 start_date_local 进行日期比较（更可靠）
+        if a.get('start_date_local', '') >= week_ago and a.get('icu_training_load', 0) > 0:
             try:
                 activity_date = datetime.strptime(a.get('start_date_local', '')[:10], '%Y-%m-%d')
                 week_activities.append({
@@ -52,7 +73,8 @@ def extract_status_data():
     month_ago = (today - timedelta(days=30)).isoformat()
     fitness_history = []
     for a in data:
-        if a.get('start_date', '') >= month_ago and a.get('icu_ctl') is not None:
+        # 使用 start_date_local 进行日期比较（更可靠）
+        if a.get('start_date_local', '') >= month_ago and a.get('icu_ctl') is not None:
             try:
                 activity_date = datetime.strptime(a.get('start_date_local', '')[:10], '%Y-%m-%d')
                 fitness_history.append({
@@ -180,7 +202,8 @@ def extract_trend_data():
             "atl": a.get('icu_atl', 0),
         }
         for a in data
-        if a.get('start_date', '') >= month_ago and a.get('icu_training_load', 0) > 0
+        # 使用 start_date_local 进行日期比较（更可靠）
+        if a.get('start_date_local', '') >= month_ago and a.get('icu_training_load', 0) > 0
     ][:30]
     
     # 按周汇总
@@ -273,6 +296,14 @@ def extract_latest_ride_data():
         else:
             recovery_intervals.append(interval_data)
     
+    # 从 intervals 中提取最大功率（activity 级别没有 max_watts）
+    max_watts_from_intervals = 0
+    if intervals:
+        max_watts_from_intervals = max(
+            (i.get('max_watts', 0) for i in intervals),
+            default=0
+        )
+    
     return {
         "activity": {
             "id": latest.get('id'),
@@ -290,9 +321,9 @@ def extract_latest_ride_data():
             "max_speed_kmh": round(latest.get('max_speed', 0) * 3.6, 1) if latest.get('max_speed') else 0,
         },
         "power": {
-            "avg_watts": latest.get('icu_weighted_avg_watts', 0),
-            "max_watts": latest.get('max_watts', 0),
-            "normalized_watts": latest.get('icu_normalized_watts', 0),
+            "avg_watts": latest.get('icu_average_watts', 0),
+            "np": latest.get('icu_weighted_avg_watts', 0),
+            "max_watts": max_watts_from_intervals,
             "training_load": latest.get('icu_training_load', 0),
             "intensity": latest.get('icu_intensity', 0),
             "ftp": latest.get('icu_ftp', 0),
