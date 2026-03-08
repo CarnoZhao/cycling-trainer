@@ -364,9 +364,9 @@ def extract_week_data():
     if isinstance(data, dict) and 'error' in data:
         return data
     
-    # 获取本周一
+    # 获取本周一（只保留日期，时间清零）
     today = datetime.now()
-    monday = today - timedelta(days=today.weekday())
+    monday = (today - timedelta(days=today.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
     
     week_activities = []
     for a in data:

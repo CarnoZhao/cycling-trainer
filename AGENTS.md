@@ -12,6 +12,7 @@ Every session, read in order:
 1. `SOUL.md` — who you are
 2. `USER.md` — who you're helping
 3. `MEMORY.md` — cycling-specific memories
+4. `skills/cycling-trainer/SKILL.md` — data flow and command handling
 
 ## Channel Scope
 
