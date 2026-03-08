@@ -116,7 +116,27 @@ python3 skills/cycling-trainer/scripts/extract_data.py --full
 | `prompts/trend_analysis.md` | 30天趋势解读 | `/ride-trend` |
 | `prompts/week_summary.md` | 本周训练总结 | `/ride-week` |
 | `prompts/latest_ride_analysis.md` | 单次骑行分析 | `/ride-latest` |
-| `prompts/plan_generation.md` | 个性化训练计划 | `/ride-plan` |
+| `prompts/plan_generation.md` | 周期化训练计划 (3+1超量恢复) | `/ride-plan` |
+
+## 周期化训练系统
+
+### 4周超量恢复周期
+训练计划采用经典的 **3周强度周 + 1周恢复周** 周期化模式：
+
+```
+第1周 (基础强度周): 建立基础，中等负荷
+第2周 (递增强度周): 增加难度，提升负荷  
+第3周 (峰值强度周): 最大负荷，突破极限
+第4周 (恢复周): 主动恢复，超量补偿
+```
+
+### 周期记忆
+周期状态保存在 `memory/cycling.md` 中，包含：
+- 当前周期编号和周期周位置
+- 每周完成的训练记录
+- 下周训练目标
+
+Agent 调用 `/ride-plan` 时会读取周期记忆，判断当前处于周期的第几周，然后按周期化原则安排训练。
 
 ---
 
@@ -199,6 +219,7 @@ python3 skills/cycling-trainer/scripts/extract_data.py --full
 - 活动数据: `~/.openclaw/workspace-cycling/data/cycling/activities.json`
 - 同步状态: `~/.openclaw/workspace-cycling/data/cycling/sync_state.json`
 - 频道记忆: `~/.openclaw/workspace-cycling/memory/cycling.md`
+- 周期记忆: `~/.openclaw/workspace-cycling/memory/cycling.md` (Training Cycle Memory 部分)
 
 ---
 

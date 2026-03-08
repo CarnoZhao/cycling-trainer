@@ -22,6 +22,7 @@ from .extractors import (
     extract_week_data,
 )
 from .planned import extract_planned_data
+from .cycle_memory import extract_cycle_memory, update_cycle_memory
 
 __all__ = [
     'load_config',
@@ -35,4 +36,6 @@ __all__ = [
     'extract_latest_ride_data',
     'extract_week_data',
     'extract_planned_data',
+    'extract_cycle_memory',
+    'update_cycle_memory',
 ]

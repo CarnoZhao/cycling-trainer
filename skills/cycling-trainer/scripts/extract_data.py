@@ -27,6 +27,7 @@ from extract import (
     extract_latest_ride_data,
     extract_week_data,
     extract_planned_data,
+    extract_cycle_memory,
 )
 
 
@@ -40,6 +41,7 @@ def main():
     parser.add_argument('--planned', action='store_true', help='Extract planned workouts')
     parser.add_argument('--planned-days', type=int, default=7, help='Days to look ahead for planned workouts')
     parser.add_argument('--full', action='store_true', help='Extract all data')
+    parser.add_argument('--cycle-memory', action='store_true', help='Extract cycle memory')
     parser.add_argument('--no-sync', action='store_true', help='Skip auto-sync check')
     
     args = parser.parse_args()
@@ -64,6 +66,8 @@ def main():
         result = extract_week_data()
     elif args.planned:
         result = extract_planned_data(days=args.planned_days)
+    elif args.cycle_memory:
+        result = extract_cycle_memory()
     elif args.full:
         result = {
             "status": extract_status_data(),
@@ -72,6 +76,7 @@ def main():
             "latest": extract_latest_ride_data(),
             "week": extract_week_data(),
             "planned": extract_planned_data(days=7),
+            "cycle_memory": extract_cycle_memory(),
         }
     else:
         result = extract_status_data()
