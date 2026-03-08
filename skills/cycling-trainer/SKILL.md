@@ -22,6 +22,13 @@ Discord/TG Command → extract_data.py → JSON Data + Prompt → LLM Analysis
 2. 读取对应 prompt 文件
 3. 结合数据进行分析并回复
 
+**特殊流程 - `/ride-plan`:**
+1. 调用 `extract_data.py --plan` 提取数据
+2. 读取 `MEMORY.md` 中的 **Training Cycle Memory** 部分
+3. 读取 `plan_generation.md` prompt
+4. **后台更新 `MEMORY.md`** 周期记忆（用户不可见）
+5. 生成训练计划并回复用户（最后一步，确保用户看到的是完整计划）
+
 ---
 
 ## 配置方式
