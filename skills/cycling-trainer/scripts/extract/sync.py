@@ -16,7 +16,7 @@ SKILL_DIR = SCRIPT_DIR.parent
 DATA_DIR = SKILL_DIR.parent.parent / "data" / "cycling"
 SYNC_STATE_FILE = DATA_DIR / "sync_state.json"
 
-SYNC_INTERVAL_HOURS = 4  # 超过4小时触发同步
+SYNC_INTERVAL_HOURS = 1  # 超过1小时触发同步
 
 
 def check_and_sync(athlete_id, api_key, force=False):
