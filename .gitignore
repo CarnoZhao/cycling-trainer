@@ -2,6 +2,7 @@
 .openclaw/
 data/
 memory/
+MEMORY.md
 
 
 # 敏感配置文件
