@@ -4,45 +4,33 @@
 负责各类骑行数据的提取和结构化
 """
 
+import sys
+from pathlib import Path
 from datetime import datetime, timedelta
-from .storage import load_data
-from .utils import get_weekday_cn
 
-# 可以安全忽略的字段（100% 为 null/0/空/False）
-IGNORED_FIELDS_100 = {
-    'attachments', 'average_clouds', 'average_feels_like', 'average_weather_temp',
-    'average_wind_gust', 'average_wind_speed', 'avg_lr_balance', 'carbs_ingested',
-    'coach_tick', 'commute', 'crank_length', 'custom_zones', 'feel', 'file_sport_index',
-    'has_weather', 'headwind_percent', 'icu_color', 'icu_ignore_hr', 'icu_ignore_power',
-    'icu_ignore_time', 'icu_power_spike_threshold', 'icu_rolling_cp', 'icu_rpe',
-    'icu_sync_error', 'icu_w_prime', 'ignore_pace', 'ignore_parts', 'ignore_velocity',
-    'kg_lifted', 'lengths', 'lock_intervals', 'max_feels_like', 'max_rain', 'max_snow',
-    'max_weather_temp', 'min_feels_like', 'min_weather_temp', 'p_max', 'perceived_exertion',
-    'pool_length', 'power_meter', 'power_meter_battery', 'power_meter_serial',
-    'prevailing_wind_deg', 'race', 'recording_stops', 'route_id', 'session_rpe',
-    'sub_type', 'tags', 'tailwind_percent', 'use_elevation_correction', 'workout_shift_secs',
-}
+# 确保 scripts 目录在路径中
+SCRIPT_DIR = Path(__file__).parent.parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
 
-# 基本可忽略的字段（≥90% 为空）
-IGNORED_FIELDS_90 = {
-    'p30s_exponent', 'icu_chat_id', 'icu_rolling_ftp_delta', 'icu_achievements',
-}
+from utils.storage import load_data
+from utils.dates import get_weekday_cn
 
 
 def extract_status_data():
     """
     提取状态相关原始数据
-    
+
     Returns:
         dict: 包含 latest_activity, week_activities, fitness_history 等
     """
     data = load_data()
     if isinstance(data, dict) and 'error' in data:
         return data
-    
+
     latest = data[0] if data else {}
     today = datetime.now()
-    
+
     # 最近7天活动
     week_ago = (today - timedelta(days=7)).isoformat()
     week_activities = []
@@ -68,7 +56,7 @@ def extract_status_data():
                 })
             except:
                 pass
-    
+
     # 最近30天CTL/ATL历史
     month_ago = (today - timedelta(days=30)).isoformat()
     fitness_history = []
@@ -88,7 +76,7 @@ def extract_status_data():
             except:
                 pass
     fitness_history = fitness_history[:30]
-    
+
     return {
         "athlete_id": latest.get('icu_athlete_id', ''),
         "today": today.strftime('%Y-%m-%d'),
@@ -114,14 +102,14 @@ def extract_status_data():
 def extract_form_data():
     """
     提取状态走势相关原始数据（用于对比巅峰vs当前）
-    
+
     Returns:
         dict: 包含 all_intervals, hr_grouped 等
     """
     data = load_data()
     if isinstance(data, dict) and 'error' in data:
         return data
-    
+
     # 提取所有高强度间歇数据（>=9分钟的工作段）
     intervals_data = []
     for a in data:
@@ -139,10 +127,10 @@ def extract_form_data():
                     "zone": i.get('zone', 0),
                     "training_load": i.get('training_load', 0),
                 })
-    
+
     # 按日期排序
     intervals_data.sort(key=lambda x: x['activity_date'])
-    
+
     # 按心率分组的数据（便于相同努力程度对比）
     hr_groups = {}
     for i in intervals_data:
@@ -153,12 +141,12 @@ def extract_form_data():
             if hr_key not in hr_groups:
                 hr_groups[hr_key] = []
             hr_groups[hr_key].append(i)
-    
+
     # 取每个HR组最近的记录
     hr_group_latest = {
         k: v[-5:] for k, v in hr_groups.items() if len(v) >= 2
     }
-    
+
     return {
         "total_intervals": len(intervals_data),
         "all_intervals": intervals_data[-50:],  # 最近50个间歇
@@ -173,14 +161,14 @@ def extract_form_data():
 def extract_trend_data():
     """
     提取趋势分析原始数据
-    
+
     Returns:
         dict: 包含 daily_data, weekly_summary 等
     """
     data = load_data()
     if isinstance(data, dict) and 'error' in data:
         return data
-    
+
     # 最近30天的每日数据
     month_ago = (datetime.now() - timedelta(days=30)).isoformat()
     daily_data = [
@@ -205,7 +193,7 @@ def extract_trend_data():
         # 使用 start_date_local 进行日期比较（更可靠）
         if a.get('start_date_local', '') >= month_ago and a.get('icu_training_load', 0) > 0
     ][:30]
-    
+
     # 按周汇总
     weeks = {}
     for a in daily_data:
@@ -230,14 +218,14 @@ def extract_trend_data():
             weeks[week_key]["activities"].append(a)
         except:
             pass
-    
+
     # 计算平均强度
     for w in weeks.values():
         if w['avg_intensity']:
             w['avg_intensity'] = round(sum(w['avg_intensity']) / len(w['avg_intensity']), 2)
         else:
             w['avg_intensity'] = 0
-    
+
     return {
         "daily_data": daily_data,
         "weekly_summary": list(weeks.values())[-4:],  # 最近4周
@@ -247,40 +235,40 @@ def extract_trend_data():
 def extract_latest_ride_data():
     """
     提取最近一次骑行的详细数据
-    
+
     Returns:
         dict: 包含 activity, metrics, power, heart_rate, efficiency, zones, intervals 等
     """
     data = load_data()
     if isinstance(data, dict) and 'error' in data:
         return data
-    
+
     # 找到最新的一条有数据的骑行
     latest = None
     for a in data:
         if a.get('icu_training_load', 0) > 0:
             latest = a
             break
-    
+
     if not latest:
         return {"error": "No ride data found"}
-    
+
     # 功率区间时间
     zone_times = {}
     for z in latest.get('icu_zone_times', []):
         zone_id = z.get('id', '')
         secs = z.get('secs', 0)
         zone_times[zone_id] = round(secs / 60, 1)
-    
+
     # 心率区间时间
     hr_zones = latest.get('icu_hr_zone_times', [])
     hr_zone_times = {f"Z{i+1}": round(hr_zones[i]/60, 1) if i < len(hr_zones) else 0 for i in range(7)}
-    
+
     # 间歇详情
     intervals = latest.get('icu_intervals', [])
     work_intervals = []
     recovery_intervals = []
-    
+
     for i in intervals:
         interval_data = {
             "type": i.get('type'),
@@ -295,7 +283,7 @@ def extract_latest_ride_data():
             work_intervals.append(interval_data)
         else:
             recovery_intervals.append(interval_data)
-    
+
     # 从 intervals 中提取最大功率（activity 级别没有 max_watts）
     max_watts_from_intervals = 0
     if intervals:
@@ -303,7 +291,7 @@ def extract_latest_ride_data():
             (i.get('max_watts', 0) for i in intervals),
             default=0
         )
-    
+
     return {
         "activity": {
             "id": latest.get('id'),
@@ -356,18 +344,18 @@ def extract_latest_ride_data():
 def extract_week_data():
     """
     提取本周数据
-    
+
     Returns:
         dict: 包含 week_start, activities, summary, current_status 等
     """
     data = load_data()
     if isinstance(data, dict) and 'error' in data:
         return data
-    
+
     # 获取本周一（只保留日期，时间清零）
     today = datetime.now()
     monday = (today - timedelta(days=today.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
-    
+
     week_activities = []
     for a in data:
         try:
@@ -390,13 +378,13 @@ def extract_week_data():
                 })
         except:
             pass
-    
+
     # 汇总统计
     total_duration = sum(a['duration_min'] for a in week_activities)
     total_distance = sum(a['distance_km'] for a in week_activities)
     total_load = sum(a['training_load'] for a in week_activities)
     avg_intensity = sum(a['intensity'] for a in week_activities) / len(week_activities) if week_activities else 0
-    
+
     return {
         "week_start": monday.strftime('%Y-%m-%d'),
         "week_start_weekday": get_weekday_cn(monday),

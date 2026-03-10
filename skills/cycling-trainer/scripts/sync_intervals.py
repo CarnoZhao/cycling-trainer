@@ -36,9 +36,8 @@ from sync import (
 
 def show_status():
     """显示同步状态"""
-    from sync.config import DATA_DIR
+    from utils.storage import ACTIVITIES_FILE
     from sync.state import CACHE_FILE
-    from sync.storage import ACTIVITIES_FILE
     
     state = get_sync_state()
     

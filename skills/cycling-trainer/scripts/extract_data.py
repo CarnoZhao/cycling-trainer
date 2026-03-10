@@ -48,7 +48,8 @@ def main():
     args = parser.parse_args()
     
     # 获取认证信息
-    athlete_id, api_key = get_credentials()
+    creds = get_credentials()
+    athlete_id, api_key = creds[0], creds[1]
     
     # 自动同步检查（除非指定 --no-sync）
     if not args.no_sync and athlete_id and api_key:
