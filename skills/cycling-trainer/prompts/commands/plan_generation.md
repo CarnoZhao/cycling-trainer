@@ -12,7 +12,6 @@
 - 周期结构：详见 `core/training_principles.md`
 - 输出规则：详见 `core/output_rules.md`
 - 功率区间：详见 `core/power_zones.md`
-- 输出模板：详见 `templates/plan_template.md`
 
 ## 输入数据
 
@@ -38,7 +37,7 @@
 
 4. **规划未来7天**
    - 从今天起向后规划7天（包括今天）
-   - 每一天都要列出，休息日标注「🛌 完全休息」
+   - 每一天都要列出，休息日标注 `sets: 0`
    - 按周期周位置确定训练难度
 
 ## 周期周安排原则
@@ -50,16 +49,76 @@
 | 第3周 | Threshold峰值 | VO2max峰值 | 注意TSB |
 | 第4周 | 轻松SS或取消 | 无/恢复骑 | Z1/Z2恢复 |
 
+## 输出格式
+
+**只输出 JSON，不要输出任何其他内容。**
+
+```json
+{
+  "rationale": "第3周峰值强度，安排 Threshold + VO2max，因为TSB为正可以承受高负荷",
+  "workouts": [
+    {
+      "date_offset": 0,
+      "type": "Threshold",
+      "sets": 2,
+      "duration_min": 20,
+      "intensity_pct": 100,
+      "rest_min": 5
+    },
+    {
+      "date_offset": 1,
+      "type": "Z2",
+      "sets": 1,
+      "duration_min": 60,
+      "intensity_pct": 70,
+      "rest_min": 0
+    },
+    {
+      "date_offset": 2,
+      "type": "Rest",
+      "sets": 0,
+      "duration_min": 0,
+      "intensity_pct": 0,
+      "rest_min": 0
+    }
+  ]
+}
+```
+
+### 字段说明
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `rationale` | string | 训练安排的理由说明 |
+| `workouts` | array | 7天的训练安排 |
+| `date_offset` | int | 相对于今天的偏移天数 (0=今天, 1=明天...) |
+| `type` | string | 训练类型: Z1/Z2/SS/Threshold/VO2max/Anaerobic/Rest |
+| `sets` | int | 组数，0表示休息日 |
+| `duration_min` | int | 每组工作时长（分钟） |
+| `intensity_pct` | int | 强度百分比（相对于FTP） |
+| `rest_min` | int | 组间休息时长（分钟），单组设为0 |
+
+### 强度参考
+
+| 类型 | intensity_pct | 说明 |
+|------|---------------|------|
+| Z2 | 65-75 | 有氧基础 |
+| SS | 88-94 | Sweet Spot |
+| Threshold | 95-105 | 阈值训练 |
+| VO2max | 110-120 | 高强度间歇 |
+| Anaerobic | 125-150 | 无氧训练 |
+
 ## 执行顺序
 
 1. 分析数据 → 确定周期位置
 2. **后台更新 MEMORY.md**（用户不可见）
-3. 输出训练计划（使用 templates/plan_template.md 格式）
-4. 询问是否需要生成 workout
+3. **输出 JSON 结构化意图**
+4. Python 层会计算精确的日期、功率、TSS、NP
+5. 询问是否需要调整或上传
 
-## 输出要求
+## 注意事项
 
-- 使用 `templates/plan_template.md` 格式
-- 必须核对日期和星期几的对应关系
-- 每一天都要列出（包括休息日）
-- 最后询问：💬 需要生成 intervals.icu workout 吗？
+- **只输出 JSON**，不要输出 markdown 代码块标记
+- `date_offset` 从 0 开始，连续7天
+- 休息日必须设置 `sets: 0`
+- 保留 `rationale` 字段，让用户理解决策原因
