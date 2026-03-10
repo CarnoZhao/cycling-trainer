@@ -1,0 +1,142 @@
+{
+  "version": 1,
+  "updated_at": "2024-03-10T18:30:00+08:00",
+  "current_cycle": {
+    "cycle_number": 3,
+    "start_date": "2024-02-19",
+    "current_week": 3,
+    "week_type": "peak",
+    "ftp": 280
+  },
+  "this_week": {
+    "week_number": 3,
+    "week_type": "peak",
+    "intensity_target": 3,
+    "intensity_completed": 2,
+    "total_load": 180,
+    "tsb": -8.5,
+    "status": "in_progress",
+    "activities": [
+      {
+        "date": "2024-03-10",
+        "weekday": "周日",
+        "content": "Sweet Spot 2x20min",
+        "type": "SS",
+        "load": 85,
+        "status": "completed"
+      },
+      {
+        "date": "2024-03-08",
+        "weekday": "周五",
+        "content": "Z2 Easy Ride 60min",
+        "type": "Z2",
+        "load": 45,
+        "status": "completed"
+      },
+      {
+        "date": "2024-03-06",
+        "weekday": "周三",
+        "content": "Threshold 2x20min + 1x10min",
+        "type": "Threshold",
+        "load": 95,
+        "status": "completed"
+      },
+      {
+        "date": "2024-03-12",
+        "weekday": "周二",
+        "content": "VO2max 5x4min",
+        "type": "VO2max",
+        "load": 90,
+        "status": "planned"
+      }
+    ]
+  },
+  "last_week": {
+    "week_number": 2,
+    "week_type": "build",
+    "intensity_target": 2,
+    "intensity_completed": 2,
+    "total_load": 245,
+    "tsb": -5.2,
+    "status": "completed",
+    "activities": [
+      {
+        "date": "2024-03-03",
+        "weekday": "周日",
+        "content": "Long Endurance 3h",
+        "type": "Z2",
+        "load": 120,
+        "status": "completed"
+      },
+      {
+        "date": "2024-03-01",
+        "weekday": "周五",
+        "content": "VO2max 5x4min",
+        "type": "VO2max",
+        "load": 105,
+        "status": "completed"
+      }
+    ]
+  },
+  "week_before_last": {
+    "week_number": 1,
+    "week_type": "base",
+    "intensity_target": 2,
+    "intensity_completed": 2,
+    "total_load": 220,
+    "tsb": -2.1,
+    "status": "completed",
+    "activities": [
+      {
+        "date": "2024-02-25",
+        "weekday": "周日",
+        "content": "Sweet Spot 3x15min",
+        "type": "SS",
+        "load": 95,
+        "status": "completed"
+      },
+      {
+        "date": "2024-02-23",
+        "weekday": "周五",
+        "content": "Z2 Endurance 2.5h",
+        "type": "Z2",
+        "load": 100,
+        "status": "completed"
+      },
+      {
+        "date": "2024-02-21",
+        "weekday": "周三",
+        "content": "Tempo 3x15min",
+        "type": "Tempo",
+        "load": 75,
+        "status": "completed"
+      }
+    ]
+  },
+  "cycle_history": [
+    {
+      "cycle_number": 1,
+      "start_date": "2024-01-01",
+      "end_date": "2024-01-28",
+      "completed": true,
+      "weeks": [
+        {"week_number": 1, "week_type": "base", "completed": true},
+        {"week_number": 2, "week_type": "build", "completed": true},
+        {"week_number": 3, "week_type": "peak", "completed": true},
+        {"week_number": 4, "week_type": "recovery", "completed": true}
+      ]
+    },
+    {
+      "cycle_number": 2,
+      "start_date": "2024-01-29",
+      "end_date": "2024-02-25",
+      "completed": true,
+      "weeks": [
+        {"week_number": 1, "week_type": "base", "completed": true},
+        {"week_number": 2, "week_type": "build", "completed": true},
+        {"week_number": 3, "week_type": "peak", "completed": true},
+        {"week_number": 4, "week_type": "recovery", "completed": true}
+      ]
+    }
+  ]
+}
