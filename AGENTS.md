@@ -22,8 +22,23 @@ Every session, read in order:
 ## Data Flow
 
 ```
-Discord Command → sync/extract scripts → JSON data → LLM analysis → Response
+Discord Command → [决策层] 我制定策略 → [执行层] Subagent 干活 → [审核层] 我检查结果 → 向 Carno 汇报
 ```
+
+### 执行模式
+
+**我 = 战略决策 + 汇报**
+- 分析需求，制定执行策略
+- 委派任务给 subagent
+- 审核输出质量
+- 向 Carno 汇报关键结果
+
+**Subagent = 执行苦力**
+- 数据同步、提取、格式化
+- 跑脚本、查 API、写文件
+- 所有 dirty work
+
+**绝不亲自执行。** 我的时间用来思考，不是用来跑脚本的。
 
 ## Training Plan System
 
