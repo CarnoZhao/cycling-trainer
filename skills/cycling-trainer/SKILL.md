@@ -80,6 +80,68 @@ python3 skills/cycling-trainer/scripts/extract_data.py --week
 
 > 所有提取命令默认启用自动同步检查
 
+## Workout 生成与上传流程
+
+Workout 生成不是独立命令，而是 `/ride-plan` 后的持续对话交互。
+
+### 流程
+
+```
+1. /ride-plan → 询问「需要生成 intervals.icu workout 吗？」
+                    ↓ 肯定答复
+2. 生成 **未来7天所有训练** 的 workouts
+   - 包括：强度课 + Z2有氧 + 恢复周课程
+   - 展示所有 workouts 供用户确认
+                    ↓ 用户要求调整
+3. 根据反馈调整（功率、时长、日期等）
+                    ↓ 用户确认「上传」
+4. 调用 API 上传到 intervals.icu → 完成
+```
+
+### 用户指令
+
+| 阶段 | 用户回复 | 动作 |
+|------|---------|------|
+| 询问生成 | 「需要」、「生成」 | 进入生成阶段，生成**所有**未来训练 |
+| 查看确认 | 「上传」或「调整」 | 确认后上传，或根据反馈调整 |
+| 调整指令 | 「周四改成3组」、「缩短到80分钟」、「功率提到250w」等 | 修改对应 workout |
+| 日期调整 | 「把周四的课改到周三」 | 调整日期，注意核对星期几 |
+
+### 上传技术细节
+
+**Python 脚本**: `upload_workouts.py`
+- 计算准确的 `moving_time`（秒）和 `icu_training_load`（TSS）
+- 使用标准 NP 算法（30秒滑动窗口平均的四次方平均再开四次方）
+- **API 认证**: Basic Auth with base64 encoded `API_KEY:{api_key}`
+- **API URL**: `POST /api/v1/athlete/{athlete_id}/events/bulk?upsertOnUid=false&updatePlanApplied=false`
+
+**Workout 描述语法**:
+```
+- {时长}m @{功率}w           # 固定功率
+- {时长}m ramp {开始}w-{结束}w  # 渐进式ramp
+{组数}x                      # 重复组标记
+- {时长}m @{功率}w           # 组内步骤
+```
+
+**热身冷身功率限制** (基于 FTP):
+- 热身: ramp 48%-71% FTP
+- 冷身: ramp 71%-48% FTP  
+- 组间恢复: ~58% FTP
+
+**强度课命名规则**:
+- 格式: `{类型} {组数}x{时间}@{功率}w`
+- 示例: `Threshold 2x20min@260w`, `VO2max 5x4min@310w`
+- 使用**绝对功率值**，不用百分比
+
+**Z2 Easy 恢复骑模板** (参考本周二课表):
+```
+-10m ramp 125w-175w
+4x
+-5m 165w
+-5m 175w
+-10m ramp 175w-125w
+```
+
 ---
 
 ## 周期化训练系统
